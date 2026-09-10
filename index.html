@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกข้อมูลแบบแปลนงานก่อสร้าง</title>
+    <!-- Google Fonts: Prompt -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- Navigation Bar (Glassmorphism) -->
+    <nav class="glass-nav">
+        <h2>🏗️ Construction Plans</h2>
+        <div class="nav-links">
+            <a href="#" onclick="showPage('dashboard')">แดชบอร์ด</a>
+            <a href="#" onclick="showPage('search')">ค้นหาข้อมูล</a>
+            <a href="#" onclick="showPage('form')" id="nav-add" style="display:none;">เพิ่มข้อมูลใหม่</a>
+            <a href="#" onclick="toggleLogin()" id="nav-login" class="login-btn">Admin Login</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- หน้า Dashboard -->
+        <section id="dashboard" class="page active">
+            <div class="glass-panel">
+                <h3>ภาพรวมโครงการ</h3>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <h4>จำนวนโครงการทั้งหมด</h4>
+                        <p id="total-projects">0</p>
+                    </div>
+                    <div class="stat-box">
+                        <h4>งบประมาณรวม (บาท)</h4>
+                        <p id="total-budget">0</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="budgetChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- หน้า ฟอร์มบันทึกข้อมูล (ซ่อนไว้สำหรับ Admin) -->
+        <section id="form" class="page">
+            <div class="glass-panel">
+                <h3>บันทึกข้อมูลแบบแปลนงานก่อสร้าง</h3>
+                <form id="dataForm">
+                    <div class="input-group">
+                        <label>ชื่อโครงการ</label>
+                        <input type="text" id="projectName" placeholder="ระบุชื่อโครงการ..." required>
+                    </div>
+                    
+                    <div class="input-group-row">
+                        <div class="input-group">
+                            <label>ปีงบประมาณ</label>
+                            <input type="number" id="year" placeholder="เช่น 2569" required>
+                        </div>
+                        <div class="input-group">
+                            <label>หน่วยงาน</label>
+                            <select id="department" required>
+                                <option value="" disabled selected>-- เลือกหน่วยงาน --</option>
+                                <option value="กองช่าง">กองช่าง</option>
+                                <option value="กองการศึกษา">กองการศึกษา</option>
+                                <option value="สำนักปลัด">สำนักปลัด</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="input-group-row">
+                        <div class="input-group">
+                            <label>เลขที่แบบแปลน</label>
+                            <input type="text" id="planNo" required>
+                        </div>
+                        <div class="input-group">
+                            <label>จำนวนแผ่น</label>
+                            <input type="number" id="pages" required>
+                        </div>
+                        <div class="input-group">
+                            <label>งบประมาณ (บาท)</label>
+                            <input type="text" id="budget" oninput="formatNumber(this)" required>
+                        </div>
+                    </div>
+                    
+                    <!-- ระบบแผนที่ Leaflet -->
+                    <div class="input-group map-container">
+                        <label>ระบุตำแหน่งโครงการ (คลิกปักหมุดบนแผนที่)</label>
+                        <div id="map"></div>
+                        <input type="hidden" id="lat">
+                        <input type="hidden" id="lng">
+                    </div>
+
+                    <!-- อัปโหลดไฟล์ PDF -->
+                    <div class="input-group-row files-section">
+                        <div class="input-group">
+                            <label>1. บันทึกขออนุมัติ (.pdf)</label>
+                            <input type="file" id="file1" accept="application/pdf">
+                        </div>
+                        <div class="input-group">
+                            <label>2. แบบแปลน (.pdf)</label>
+                            <input type="file" id="file2" accept="application/pdf">
+                        </div>
+                        <div class="input-group">
+                            <label>3. ประมาณราคา (.pdf)</label>
+                            <input type="file" id="file3" accept="application/pdf">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary">💾 บันทึกข้อมูลโครงการ</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- หน้า ค้นหาและตารางข้อมูล -->
+        <section id="search" class="page">
+            <div class="glass-panel">
+                <h3>รายการข้อมูลแบบแปลน</h3>
+                <input type="text" id="searchInput" placeholder="🔍 ค้นหาชื่อโครงการ, หน่วยงาน, หรือปีงบประมาณ..." class="search-box">
+                
+                <div class="table-responsive">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>ปี</th>
+                                <th>ชื่อโครงการ</th>
+                                <th>หน่วยงาน</th>
+                                <th>งบประมาณ (บาท)</th>
+                                <th>เอกสาร PDF</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- ข้อมูลจาก API จะมาแสดงที่นี่ -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
