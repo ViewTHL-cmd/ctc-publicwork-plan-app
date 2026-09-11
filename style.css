@@ -1,716 +1,531 @@
-/*******************************************************
- * Frontend Logic — SPA ระบบบันทึกข้อมูลแบบแปลนงานก่อสร้าง
- *******************************************************/
+/* ==========================================================
+   ระบบบันทึกข้อมูลแบบแปลนงานก่อสร้าง — Blue Vivid Theme v2.0
+   ========================================================== */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbyQfEQUeqrCkhd61dbftgJf3gtnHWctj2Ap4BAMWMP2f2JNcXkeexWRmuLxlFoGrMY0/exec';
-
-const DOC_TYPES = [
-  { key:'approval',  field:'approvalUrl',  label:'บันทึกขออนุมัติโครงการ', icon:'fa-file-signature' },
-  { key:'blueprint', field:'blueprintUrl', label:'แบบแปลน',               icon:'fa-drafting-compass' },
-  { key:'estimate',  field:'estimateUrl',  label:'เอกสารประมาณราคา',      icon:'fa-file-invoice-dollar' }
-];
-
-const State = {
-  token: localStorage.getItem('bp_token') || '',
-  user : JSON.parse(localStorage.getItem('bp_user') || 'null'),
-  items: [], filtered: [], options: { years:[], agencies:[] },
-  uploads: { approval:null, blueprint:null, estimate:null },
-  viewMode: 'card', editing: null, map:null, marker:null, detailMap:null,
-  charts: { agency:null, year:null }
-};
-
-const $  = s => document.querySelector(s);
-const $ = s => Array.from(document.querySelectorAll(s));
-
-/* ================= UTILITIES ================= */
-const fmtNum   = n => (Number(n)||0).toLocaleString('th-TH');
-const fmtMoney = n => (Number(n)||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
-const shortNum = n => {
-  n = Number(n)||0;
-  if(n>=1e9) return (n/1e9).toFixed(2)+' พันล.';
-  if(n>=1e6) return (n/1e6).toFixed(2)+' ล.';
-  if(n>=1e3) return (n/1e3).toFixed(1)+' พัน';
-  return fmtNum(n);
-};
-const esc = s => String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const fmtDate = iso => {
-  if(!iso) return '-';
-  const d = new Date(iso);
-  return d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'}) +
-         ' ' + d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
-};
-
-function showLoader(txt='กำลังโหลดข้อมูล...'){ $('#loaderText').textContent = txt; $('#loader').classList.remove('hidden'); }
-function hideLoader(){ $('#loader').classList.add('hidden'); }
-
-function toast(msg, type='info'){
-  const icon = { success:'fa-circle-check', error:'fa-circle-exclamation', warn:'fa-triangle-exclamation', info:'fa-circle-info' }[type];
-  const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.innerHTML = `<i class="fa-solid ${icon}"></i><span>${esc(msg)}</span>`;
-  $('#toastWrap').appendChild(el);
-  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(60px)'; setTimeout(()=>el.remove(),300); }, 3500);
+:root{
+  /* --- ระดับสีฟ้าหลัก --- */
+  --b-950:#030b1e;  --b-900:#071539;  --b-800:#0c2154;
+  --b-700:#12366f;  --b-600:#1656a8;  --b-500:#2277e0;
+  --b-400:#3b96ff;  --b-300:#6cb6ff;  --b-200:#a5d4ff;
+  /* --- สีเน้น --- */
+  --cyan:#22d3ee;   --sky:#38bdf8;    --indigo:#818cf8;
+  --emerald:#34d399;--amber:#fbbf24;  --violet:#c084fc;
+  --rose:#fb7185;   --danger:#ef4444; --ok:#22c55e; --warn:#f59e0b;
+  /* --- พื้นผิว --- */
+  --glass:rgba(255,255,255,.075);
+  --glass-2:rgba(255,255,255,.13);
+  --line:rgba(140,190,255,.22);
+  --line-soft:rgba(140,190,255,.12);
+  --text:#eaf3ff; --muted:#9cb8dd; --dim:#6f8cb5;
+  --r-sm:10px; --r:14px; --r-lg:20px; --r-xl:26px;
+  --sh:0 10px 30px rgba(0,10,40,.42);
+  --sh-lg:0 18px 46px rgba(0,10,40,.55);
+  --glow:0 0 0 1px rgba(59,150,255,.25), 0 8px 28px rgba(34,119,224,.32);
 }
 
-/* ================= API LAYER ================= */
-async function apiGet(action, params = {}) {
-  const q = new URLSearchParams(Object.assign({ action, token: State.token }, params));
-  const res = await fetch(`${API_URL}?${q.toString()}`, { method:'GET', redirect:'follow' });
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
-  return json.data;
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  font-family:'Prompt',system-ui,sans-serif;font-weight:300;color:var(--text);
+  min-height:100vh;overflow-x:hidden;line-height:1.55;
+  background:
+    radial-gradient(1200px 620px at 12% -8%, rgba(56,189,248,.30), transparent 60%),
+    radial-gradient(1000px 560px at 92% 4%, rgba(129,140,248,.24), transparent 62%),
+    radial-gradient(900px 700px at 50% 108%, rgba(34,211,238,.20), transparent 60%),
+    linear-gradient(165deg,#030b1e 0%,#071539 28%,#0c2154 55%,#12366f 78%,#1656a8 100%);
+  background-attachment:fixed;
+}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+a{color:var(--b-300)}
+.hidden{display:none!important}
+.mt-12{margin-top:12px}
+
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:rgba(255,255,255,.04)}
+::-webkit-scrollbar-thumb{background:linear-gradient(var(--b-400),var(--cyan));border-radius:20px;border:2px solid transparent;background-clip:padding-box}
+
+/* ---------- ออร์บพื้นหลัง ---------- */
+.bg-orbs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.bg-orbs span{position:absolute;border-radius:50%;filter:blur(100px);opacity:.42;animation:float 20s ease-in-out infinite}
+.bg-orbs span:nth-child(1){width:440px;height:440px;background:var(--b-400);top:-110px;left:-90px}
+.bg-orbs span:nth-child(2){width:400px;height:400px;background:var(--cyan);bottom:-130px;right:-70px;animation-delay:-7s}
+.bg-orbs span:nth-child(3){width:320px;height:320px;background:var(--indigo);top:42%;left:56%;animation-delay:-13s}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(46px,-42px) scale(1.08)}}
+
+.glass{
+  background:var(--glass);
+  backdrop-filter:blur(20px) saturate(175%);
+  -webkit-backdrop-filter:blur(20px) saturate(175%);
+  border:1px solid var(--line);box-shadow:var(--sh);
 }
 
-async function apiPost(action, payload = {}) {
-  const body = JSON.stringify(Object.assign({ action, token: State.token }, payload));
-  const res = await fetch(API_URL, {
-    method : 'POST',
-    headers: { 'Content-Type':'text/plain;charset=utf-8' },  // เลี่ยง CORS preflight
-    body, redirect:'follow'
-  });
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
-  return json.data;
+/* ---------- แถบแจ้งเครือข่าย ---------- */
+.net-banner{
+  position:fixed;top:0;left:0;right:0;z-index:400;text-align:center;
+  padding:9px 16px;font-size:.82rem;color:#3b1a00;
+  background:linear-gradient(90deg,var(--amber),#fcd34d);box-shadow:0 4px 18px rgba(0,0,0,.3)
+}
+.net-banner.ok{background:linear-gradient(90deg,var(--emerald),#6ee7b7);color:#04331f}
+
+/* ==========================================================
+   TOPBAR
+   ========================================================== */
+.topbar{
+  position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  padding:12px 24px;border-radius:0 0 var(--r-xl) var(--r-xl);
+  background:linear-gradient(180deg,rgba(7,21,57,.88),rgba(12,33,84,.66));
+  backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  border-bottom:1px solid var(--line);box-shadow:0 8px 30px rgba(0,8,30,.5)
+}
+.topbar::after{
+  content:'';position:absolute;left:24px;right:24px;bottom:0;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,var(--cyan),var(--b-400),var(--indigo),transparent);opacity:.75
+}
+.brand{display:flex;align-items:center;gap:13px;flex:1;min-width:200px}
+.brand-icon{
+  width:48px;height:48px;display:grid;place-items:center;border-radius:15px;font-size:1.25rem;color:#031028;
+  background:linear-gradient(140deg,var(--cyan),var(--b-400) 55%,var(--indigo));
+  box-shadow:0 8px 22px rgba(56,189,248,.48);flex-shrink:0
+}
+.brand-icon.lg{width:66px;height:66px;font-size:1.7rem;margin:0 auto 12px}
+.brand-text h1{
+  font-size:1.06rem;font-weight:600;line-height:1.25;
+  background:linear-gradient(90deg,#fff,var(--b-200));-webkit-background-clip:text;background-clip:text;color:transparent
+}
+.brand-text span{font-size:.72rem;color:var(--dim);font-weight:300;letter-spacing:.4px}
+
+.nav{display:flex;gap:6px}
+.nav-btn{
+  display:flex;align-items:center;gap:8px;padding:10px 17px;border-radius:var(--r);
+  border:1px solid transparent;background:transparent;color:var(--muted);
+  cursor:pointer;font-weight:400;transition:.25s
+}
+.nav-btn:hover{color:#fff;background:rgba(59,150,255,.16);border-color:var(--line-soft)}
+.nav-btn.active{
+  color:#fff;border-color:rgba(56,189,248,.55);
+  background:linear-gradient(135deg,rgba(34,211,238,.32),rgba(34,119,224,.42));box-shadow:var(--glow)
+}
+.nav-btn.active i{color:var(--cyan)}
+
+.auth-area{display:flex;align-items:center;gap:10px}
+.user-chip{
+  display:flex;align-items:center;gap:9px;padding:7px 8px 7px 15px;border-radius:30px;font-size:.85rem;
+  background:linear-gradient(135deg,rgba(52,211,153,.22),rgba(34,211,238,.16));
+  border:1px solid rgba(52,211,153,.45)
+}
+.user-chip i{color:var(--emerald)}
+.user-chip button{background:rgba(239,68,68,.28);border:0;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;transition:.2s}
+.user-chip button:hover{background:var(--danger);transform:rotate(90deg)}
+.burger{display:none;background:var(--glass-2);border:1px solid var(--line);color:#fff;width:42px;height:42px;border-radius:var(--r);cursor:pointer}
+
+/* ==========================================================
+   LAYOUT
+   ========================================================== */
+.container{position:relative;z-index:1;max-width:1300px;margin:0 auto;padding:28px 20px 64px}
+.view{display:none;animation:rise .45s cubic-bezier(.22,1,.36,1)}
+.view.active{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+
+.page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.page-head h2{font-size:1.38rem;font-weight:500;display:flex;align-items:center;gap:12px;padding-left:14px;position:relative}
+.page-head h2::before{
+  content:'';position:absolute;left:0;top:15%;bottom:15%;width:5px;border-radius:4px;
+  background:linear-gradient(180deg,var(--cyan),var(--b-500))
+}
+.page-head h2 i{color:var(--cyan)}
+
+.panel{border-radius:var(--r-lg);padding:24px;margin-bottom:22px;position:relative;overflow:hidden}
+.panel::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--cyan),var(--b-400) 45%,var(--indigo));opacity:.9
+}
+.panel h4{font-size:1rem;font-weight:500;margin-bottom:18px;display:flex;align-items:center;gap:9px}
+.panel h4 i{color:var(--cyan)}
+
+/* ==========================================================
+   STAT CARDS
+   ========================================================== */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(236px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{
+  border-radius:var(--r-lg);padding:20px;display:flex;align-items:center;gap:16px;
+  transition:.32s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden
+}
+.stat-card::after{
+  content:'';position:absolute;inset:0;opacity:.14;pointer-events:none;
+  background:radial-gradient(120px 90px at 100% 0%, var(--tone,#38bdf8), transparent 70%)
+}
+.stat-card:hover{transform:translateY(-6px);background:var(--glass-2);box-shadow:var(--sh-lg)}
+.stat-card.tone-sky{--tone:var(--sky);border-left:4px solid var(--sky)}
+.stat-card.tone-emerald{--tone:var(--emerald);border-left:4px solid var(--emerald)}
+.stat-card.tone-amber{--tone:var(--amber);border-left:4px solid var(--amber)}
+.stat-card.tone-violet{--tone:var(--violet);border-left:4px solid var(--violet)}
+.stat-ico{width:56px;height:56px;border-radius:17px;display:grid;place-items:center;font-size:1.4rem;flex-shrink:0;color:#04142e}
+.ico-blue{background:linear-gradient(140deg,var(--sky),var(--b-500));box-shadow:0 8px 20px rgba(56,189,248,.4)}
+.ico-green{background:linear-gradient(140deg,var(--emerald),#0f766e);box-shadow:0 8px 20px rgba(52,211,153,.35)}
+.ico-amber{background:linear-gradient(140deg,var(--amber),#d97706);box-shadow:0 8px 20px rgba(251,191,36,.35)}
+.ico-purple{background:linear-gradient(140deg,var(--violet),var(--indigo));box-shadow:0 8px 20px rgba(192,132,252,.35)}
+.stat-card p{font-size:.8rem;color:var(--muted)}
+.stat-card h3{font-size:1.75rem;font-weight:600;line-height:1.2;word-break:break-all;letter-spacing:-.5px}
+.stat-card small{font-size:.72rem;color:var(--dim)}
+
+/* ---------- CHART & RECENT ---------- */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.chart-box{position:relative;height:326px}
+.recent-list{display:grid;gap:10px}
+.recent-item{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 17px;border-radius:var(--r);
+  background:linear-gradient(90deg,rgba(59,150,255,.12),rgba(255,255,255,.03));
+  border:1px solid var(--line-soft);border-left:4px solid var(--cyan);cursor:pointer;transition:.24s
+}
+.recent-item:hover{background:linear-gradient(90deg,rgba(59,150,255,.26),rgba(255,255,255,.06));transform:translateX(6px)}
+.recent-item b{font-weight:400;font-size:.92rem}
+.recent-item span{font-size:.75rem;color:var(--muted)}
+.empty{text-align:center;padding:44px 12px;color:var(--dim)}
+.empty i{color:var(--b-600)}
+
+/* ==========================================================
+   FORM
+   ========================================================== */
+.lock-box{border-radius:var(--r-lg);padding:58px 26px;text-align:center;border:1px dashed rgba(56,189,248,.4)}
+.lock-box>i{font-size:3.1rem;color:var(--cyan);margin-bottom:16px;display:block;text-shadow:0 0 30px rgba(34,211,238,.6)}
+.lock-box h3{font-weight:500;margin-bottom:8px}
+.lock-box p{color:var(--muted);margin-bottom:22px;font-size:.9rem}
+
+.section-title{
+  margin:30px 0 16px;padding:10px 14px;border-radius:var(--r);font-size:.95rem;font-weight:500;
+  display:flex;align-items:center;gap:11px;
+  background:linear-gradient(90deg,rgba(34,211,238,.16),transparent 70%);border-left:4px solid var(--cyan)
+}
+.section-title:first-of-type{margin-top:0}
+.section-title .step{
+  width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;
+  font-size:.8rem;font-weight:600;color:#04142e;background:linear-gradient(140deg,var(--cyan),var(--b-400))
+}
+.section-title i{color:var(--cyan)}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}
+.span-2{grid-column:span 2}
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:.84rem;color:var(--b-200);font-weight:400}
+.field label b{color:var(--rose)}
+.field input,.field select,.field textarea{
+  padding:12px 15px;border-radius:var(--r);width:100%;outline:none;transition:.22s;
+  background:rgba(6,24,60,.55);border:1px solid var(--line);color:var(--text)
+}
+.field textarea{resize:vertical}
+.field input::placeholder,.field textarea::placeholder{color:var(--dim)}
+.field input:hover,.field select:hover,.field textarea:hover{border-color:rgba(108,182,255,.45)}
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color:var(--cyan);background:rgba(8,34,82,.8);box-shadow:0 0 0 4px rgba(34,211,238,.16)
+}
+.field input.err,.field select.err{border-color:var(--rose);box-shadow:0 0 0 4px rgba(251,113,133,.18)}
+.field input[readonly]{background:rgba(255,255,255,.04);color:var(--b-200);cursor:default}
+.field select{cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%236cb6ff'><path d='M7 10 2 4h10z'/></svg>");
+  background-repeat:no-repeat;background-position:right 14px center}
+.field select option{background:var(--b-800);color:#fff}
+
+/* ---------- MAP ---------- */
+.map-tools{display:flex;gap:9px;margin-bottom:13px;flex-wrap:wrap}
+.map-tools input{
+  flex:1;min-width:180px;padding:11px 15px;border-radius:var(--r);outline:none;
+  background:rgba(6,24,60,.55);border:1px solid var(--line);color:var(--text)
+}
+.map-tools input:focus{border-color:var(--cyan);box-shadow:0 0 0 4px rgba(34,211,238,.16)}
+.map-box{height:390px;border-radius:var(--r-lg);overflow:hidden;border:2px solid rgba(56,189,248,.35);z-index:1;box-shadow:var(--glow)}
+.leaflet-container{font-family:'Prompt',sans-serif}
+.leaflet-popup-content-wrapper{background:rgba(7,21,57,.95);color:#eaf3ff;border-radius:12px;border:1px solid var(--line)}
+.leaflet-popup-tip{background:rgba(7,21,57,.95)}
+
+/* ---------- UPLOAD ---------- */
+.upload-card{
+  border:2px dashed var(--line);border-radius:var(--r-lg);padding:20px;text-align:center;cursor:pointer;
+  background:rgba(255,255,255,.035);transition:.26s;position:relative;overflow:hidden
+}
+.upload-card::before{
+  content:'';position:absolute;inset:0;opacity:0;transition:.26s;
+  background:radial-gradient(140px 100px at 50% 0%, var(--tone,#38bdf8), transparent 72%)
+}
+.upload-card.tone-sky{--tone:var(--sky)}
+.upload-card.tone-indigo{--tone:var(--indigo)}
+.upload-card.tone-cyan{--tone:var(--cyan)}
+.upload-card:hover{border-color:var(--tone);transform:translateY(-3px)}
+.upload-card:hover::before{opacity:.16}
+.upload-card.done{border-style:solid;border-color:var(--emerald);background:rgba(52,211,153,.1)}
+.upload-card i.big{font-size:2rem;color:var(--tone,var(--sky));margin-bottom:9px;display:block;position:relative}
+.upload-card.done i.big{color:var(--emerald)}
+.upload-card h5{font-size:.88rem;font-weight:500;margin-bottom:5px;position:relative}
+.upload-card small{font-size:.72rem;color:var(--muted);display:block;word-break:break-all;position:relative}
+.upload-card input[type=file]{display:none}
+.up-actions{display:flex;gap:7px;justify-content:center;margin-top:11px;flex-wrap:wrap;position:relative}
+.mini-btn{
+  display:inline-flex;align-items:center;gap:5px;padding:6px 12px;font-size:.73rem;border-radius:9px;cursor:pointer;
+  border:1px solid var(--line);background:rgba(59,150,255,.18);color:#fff;text-decoration:none;transition:.2s
+}
+.mini-btn:hover{background:rgba(59,150,255,.4);transform:translateY(-1px)}
+.mini-btn.danger{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.22)}
+.mini-btn.danger:hover{background:rgba(239,68,68,.45)}
+.progress{height:6px;border-radius:5px;background:rgba(255,255,255,.14);overflow:hidden;margin-top:11px;position:relative}
+.progress i{display:block;height:100%;width:0;border-radius:5px;transition:.35s;
+  background:linear-gradient(90deg,var(--cyan),var(--b-400),var(--indigo));box-shadow:0 0 12px rgba(34,211,238,.7)}
+
+/* ==========================================================
+   BUTTONS
+   ========================================================== */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;
+  border-radius:var(--r);border:1px solid transparent;padding:11px 21px;font-weight:400;color:#fff;
+  transition:.24s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--b-500),var(--sky) 55%,var(--cyan));
+  box-shadow:0 8px 22px rgba(34,119,224,.45);color:#04142e;font-weight:500
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(34,211,238,.5)}
+.btn-ghost{background:rgba(59,150,255,.14);border-color:var(--line)}
+.btn-ghost:hover{background:rgba(59,150,255,.3);transform:translateY(-2px)}
+.btn-danger{background:linear-gradient(135deg,#dc2626,#f87171);box-shadow:0 8px 20px rgba(220,38,38,.4)}
+.btn-danger:hover{transform:translateY(-2px)}
+.btn-sm{padding:8px 15px;font-size:.82rem}
+.btn-lg{padding:14px 30px;font-size:.98rem}
+.full{width:100%}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important;filter:grayscale(.4)}
+.btn.loading{pointer-events:none;opacity:.75}
+.form-actions{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}
+
+/* ==========================================================
+   SEARCH & FILTER
+   ========================================================== */
+.filter-panel{padding:20px}
+.search-wrap{position:relative;margin-bottom:13px}
+.search-wrap>i{position:absolute;left:17px;top:50%;transform:translateY(-50%);color:var(--cyan)}
+.search-wrap input{
+  width:100%;padding:14px 46px;border-radius:var(--r-lg);outline:none;
+  background:rgba(6,24,60,.55);border:1px solid var(--line);color:var(--text)
+}
+.search-wrap input:focus{border-color:var(--cyan);box-shadow:0 0 0 4px rgba(34,211,238,.16)}
+.clear-btn{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:transparent;border:0;color:var(--muted);cursor:pointer}
+.clear-btn:hover{color:var(--rose)}
+.suggest-box{
+  position:absolute;top:calc(100% + 7px);left:0;right:0;z-index:60;border-radius:var(--r-lg);
+  background:rgba(7,21,57,.97);backdrop-filter:blur(18px);border:1px solid var(--line);
+  max-height:290px;overflow-y:auto;display:none;box-shadow:var(--sh-lg)
+}
+.suggest-box.show{display:block;animation:rise .18s}
+.suggest-item{padding:12px 17px;cursor:pointer;border-bottom:1px solid var(--line-soft);font-size:.88rem;border-left:3px solid transparent}
+.suggest-item:last-child{border-bottom:0}
+.suggest-item:hover,.suggest-item.active{background:rgba(34,211,238,.18);border-left-color:var(--cyan)}
+.suggest-item small{display:block;color:var(--dim);font-size:.72rem;margin-top:2px}
+
+.filter-row{display:flex;gap:10px;flex-wrap:wrap}
+.filter-row select{
+  flex:1;min-width:155px;padding:11px 15px;border-radius:var(--r);cursor:pointer;outline:none;
+  background:rgba(6,24,60,.55);border:1px solid var(--line);color:var(--text);appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%236cb6ff'><path d='M7 10 2 4h10z'/></svg>");
+  background-repeat:no-repeat;background-position:right 14px center
+}
+.filter-row select:focus{border-color:var(--cyan)}
+.filter-row select option{background:var(--b-800)}
+.result-bar{
+  margin-top:14px;padding-top:13px;border-top:1px solid var(--line-soft);
+  font-size:.83rem;color:var(--muted);display:flex;gap:14px;align-items:center;flex-wrap:wrap
+}
+.result-bar b{color:var(--cyan);font-weight:600;font-size:.95rem}
+.result-bar .sum{color:#6ee7b7}
+.badge-guest{
+  padding:5px 13px;border-radius:20px;font-size:.74rem;color:#fde68a;
+  background:rgba(251,191,36,.16);border:1px solid rgba(251,191,36,.45)
+}
+.view-toggle{display:flex;gap:4px;padding:4px;border-radius:var(--r);background:rgba(6,24,60,.6);border:1px solid var(--line)}
+.tg{width:40px;height:34px;border:0;border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;transition:.2s}
+.tg:hover{color:#fff}
+.tg.active{background:linear-gradient(135deg,var(--b-500),var(--cyan));color:#04142e}
+
+/* ==========================================================
+   PROJECT CARDS
+   ========================================================== */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:17px}
+.p-card{
+  border-radius:var(--r-lg);padding:20px;cursor:pointer;display:flex;flex-direction:column;gap:13px;
+  background:var(--glass);backdrop-filter:blur(18px);border:1px solid var(--line);
+  transition:.3s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden
+}
+.p-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg,var(--cyan),var(--b-400),var(--indigo))
+}
+.p-card::after{
+  content:'';position:absolute;inset:0;opacity:0;transition:.3s;pointer-events:none;
+  background:radial-gradient(220px 140px at 100% 0%, rgba(34,211,238,.22), transparent 70%)
+}
+.p-card:hover{transform:translateY(-7px);background:var(--glass-2);box-shadow:var(--sh-lg);border-color:rgba(56,189,248,.45)}
+.p-card:hover::after{opacity:1}
+.pc-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.p-card h5{font-size:1rem;font-weight:500;line-height:1.45}
+.chip{
+  padding:4px 12px;border-radius:20px;font-size:.72rem;white-space:nowrap;color:#cdeeff;
+  background:linear-gradient(135deg,rgba(34,211,238,.26),rgba(34,119,224,.26));border:1px solid rgba(56,189,248,.45)
+}
+.pc-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;font-size:.78rem;color:var(--dim)}
+.pc-meta span b{display:block;color:var(--text);font-weight:400;margin-top:3px;font-size:.86rem}
+.pc-budget{
+  font-size:1.2rem;font-weight:600;color:#6ee7b7;padding:9px 13px;border-radius:var(--r);
+  background:linear-gradient(90deg,rgba(52,211,153,.16),transparent);border-left:3px solid var(--emerald)
+}
+.pc-budget.hide{
+  color:var(--muted);font-size:.85rem;font-weight:300;border-left-color:var(--amber);
+  background:linear-gradient(90deg,rgba(251,191,36,.14),transparent)
+}
+.pc-files{display:flex;gap:6px;flex-wrap:wrap}
+.file-dot{
+  font-size:.67rem;padding:4px 10px;border-radius:9px;color:#ffd9dc;
+  background:rgba(244,63,94,.2);border:1px solid rgba(244,63,94,.4)
+}
+.file-dot.off{background:rgba(255,255,255,.04);border-color:var(--line-soft);color:var(--dim);opacity:.6}
+
+/* ---------- TABLE ---------- */
+.table-wrap{overflow-x:auto;padding:14px}
+.data-table{width:100%;border-collapse:separate;border-spacing:0;min-width:920px;font-size:.86rem}
+.data-table th{
+  text-align:left;padding:14px 13px;font-weight:500;color:#04142e;white-space:nowrap;position:sticky;top:0;
+  background:linear-gradient(135deg,var(--sky),var(--b-400))
+}
+.data-table th:first-child{border-radius:var(--r) 0 0 0}
+.data-table th:last-child{border-radius:0 var(--r) 0 0}
+.data-table td{padding:13px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+.data-table tbody tr{transition:.2s}
+.data-table tbody tr:nth-child(even){background:rgba(255,255,255,.025)}
+.data-table tbody tr:hover{background:rgba(59,150,255,.16);box-shadow:inset 4px 0 0 var(--cyan)}
+.data-table .num{text-align:right;font-variant-numeric:tabular-nums}
+
+/* ==========================================================
+   MODAL
+   ========================================================== */
+.modal{
+  position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;padding:20px;
+  background:rgba(2,8,22,.75);backdrop-filter:blur(8px)
+}
+.modal.show{display:flex;animation:rise .26s}
+.modal-box{
+  width:100%;max-width:780px;max-height:90vh;overflow-y:auto;border-radius:var(--r-xl);padding:30px;position:relative;
+  background:linear-gradient(160deg,rgba(12,33,84,.96),rgba(7,21,57,.96));
+  border:1px solid var(--line);box-shadow:var(--sh-lg)
+}
+.modal-box::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;border-radius:var(--r-xl) var(--r-xl) 0 0;
+  background:linear-gradient(90deg,var(--cyan),var(--b-400),var(--indigo))
+}
+.modal-sm{max-width:430px}
+.modal-close{
+  position:absolute;top:15px;right:15px;width:36px;height:36px;border-radius:50%;cursor:pointer;
+  background:rgba(255,255,255,.1);border:1px solid var(--line);color:#fff;transition:.22s;z-index:2
+}
+.modal-close:hover{background:var(--danger);transform:rotate(90deg)}
+.login-head{text-align:center;margin-bottom:24px}
+.login-head h3{font-weight:500;font-size:1.16rem}
+.login-head p{font-size:.82rem;color:var(--muted);margin-top:5px}
+#loginForm .field{margin-bottom:15px}
+.pwd-wrap{position:relative}
+.pwd-wrap button{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:0;color:var(--muted);cursor:pointer}
+.pwd-wrap button:hover{color:var(--cyan)}
+.alert-error{
+  padding:12px 15px;border-radius:var(--r);font-size:.83rem;margin-bottom:15px;
+  background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.5);border-left:4px solid var(--danger)
 }
 
-/* ================= AUTH ================= */
-function isAdmin(){ return !!State.token && !!State.user; }
+/* ---------- DETAIL ---------- */
+.detail-head{padding-bottom:17px;margin-bottom:20px;border-bottom:2px solid var(--line-soft)}
+.detail-head h3{font-size:1.22rem;font-weight:500;padding-right:42px;line-height:1.45}
+.detail-head .chips{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:12px;margin-bottom:20px}
+.d-item{
+  padding:14px 17px;border-radius:var(--r);
+  background:linear-gradient(135deg,rgba(59,150,255,.13),rgba(255,255,255,.03));
+  border:1px solid var(--line-soft);border-left:3px solid var(--b-400)
+}
+.d-item small{display:block;color:var(--b-200);font-size:.74rem;margin-bottom:5px}
+.d-item b{font-weight:400;font-size:.95rem;word-break:break-word}
+.file-btns{display:grid;gap:11px;margin-bottom:18px}
+.file-btn{
+  display:flex;align-items:center;gap:13px;padding:15px 17px;border-radius:var(--r);text-decoration:none;color:#fff;transition:.24s;
+  background:linear-gradient(90deg,rgba(244,63,94,.22),rgba(244,63,94,.08));
+  border:1px solid rgba(244,63,94,.42);border-left:4px solid var(--rose)
+}
+.file-btn:hover{background:linear-gradient(90deg,rgba(244,63,94,.38),rgba(244,63,94,.14));transform:translateX(6px)}
+.file-btn.locked{
+  background:rgba(255,255,255,.04);border-color:var(--line-soft);border-left-color:var(--dim);
+  color:var(--dim);cursor:not-allowed;transform:none
+}
+.file-btn i:first-child{font-size:1.35rem}
+.file-btn span{flex:1;font-size:.88rem}
+#detailMap{height:250px;border-radius:var(--r-lg);border:2px solid rgba(56,189,248,.35);margin-bottom:18px}
+.detail-actions{display:flex;gap:11px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--line-soft)}
 
-function applyAuthUI(){
-  const admin = isAdmin();
-  $('#userChip').classList.toggle('hidden', !admin);
-  $('#btnLogin').classList.toggle('hidden', admin);
-  if(admin) $('#userName').textContent = State.user.name || State.user.username;
-  $('#guestLock').classList.toggle('hidden', admin);
-  $('#projectForm').classList.toggle('hidden', !admin);
-  $('#guestBadge').classList.toggle('hidden', admin);
+/* ==========================================================
+   LOADER / TOAST / FOOTER
+   ========================================================== */
+.loader-overlay{
+  position:fixed;inset:0;z-index:500;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;
+  background:rgba(3,11,30,.8);backdrop-filter:blur(6px)
+}
+.loader-overlay p{font-size:.9rem;color:var(--b-200)}
+.spinner{
+  width:56px;height:56px;border-radius:50%;animation:spin .9s linear infinite;
+  border:4px solid rgba(108,182,255,.18);border-top-color:var(--cyan);border-right-color:var(--b-400);
+  box-shadow:0 0 26px rgba(34,211,238,.4)
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.toast-wrap{position:fixed;top:90px;right:20px;z-index:600;display:flex;flex-direction:column;gap:11px}
+.toast{
+  display:flex;align-items:center;gap:12px;padding:14px 19px;border-radius:var(--r);min-width:268px;max-width:92vw;
+  background:linear-gradient(135deg,rgba(12,33,84,.97),rgba(7,21,57,.97));backdrop-filter:blur(16px);
+  border:1px solid var(--line);border-left:4px solid var(--cyan);font-size:.86rem;
+  box-shadow:var(--sh-lg);animation:slideIn .32s cubic-bezier(.22,1,.36,1);transition:.3s
+}
+.toast i{font-size:1.1rem;color:var(--cyan)}
+.toast.success{border-left-color:var(--ok)} .toast.success i{color:var(--ok)}
+.toast.error{border-left-color:var(--danger)} .toast.error i{color:var(--danger)}
+.toast.warn{border-left-color:var(--warn)} .toast.warn i{color:var(--warn)}
+@keyframes slideIn{from{opacity:0;transform:translateX(70px)}to{opacity:1;transform:none}}
+
+.footer{
+  position:relative;z-index:1;text-align:center;padding:24px;font-size:.78rem;color:var(--dim);
+  border-top:1px solid var(--line-soft);margin-top:20px
 }
 
-function setAuth(token, user){
-  State.token = token || ''; State.user = user || null;
-  if(token){ localStorage.setItem('bp_token', token); localStorage.setItem('bp_user', JSON.stringify(user)); }
-  else { localStorage.removeItem('bp_token'); localStorage.removeItem('bp_user'); }
-  applyAuthUI();
+/* ==========================================================
+   RESPONSIVE
+   ========================================================== */
+@media(max-width:1024px){
+  .chart-grid{grid-template-columns:1fr}
+  .grid-3{grid-template-columns:1fr 1fr}
 }
-
-async function doLogin(e){
-  e.preventDefault();
-  const u = $('#loginUser').value.trim(), p = $('#loginPass').value;
-  const errBox = $('#loginError'); errBox.classList.add('hidden');
-  try{
-    showLoader('กำลังตรวจสอบสิทธิ์...');
-    const d = await apiPost('login', { username:u, password:p });
-    setAuth(d.token, d.user);
-    closeModal('#loginModal');
-    $('#loginForm').reset();
-    toast(`ยินดีต้อนรับ ${d.user.name}`, 'success');
-    await loadAll();
-  }catch(err){
-    errBox.textContent = err.message; errBox.classList.remove('hidden');
-  }finally{ hideLoader(); }
+@media(max-width:768px){
+  .topbar{padding:10px 15px;gap:10px}
+  .brand-text h1{font-size:.9rem} .brand-text span{display:none}
+  .burger{display:grid;place-items:center}
+  .nav{order:3;width:100%;flex-direction:column;gap:5px;max-height:0;overflow:hidden;transition:max-height .32s ease}
+  .nav.open{max-height:270px;padding-top:9px}
+  .nav-btn{width:100%;justify-content:flex-start}
+  #btnLogin span{display:none}
+  .container{padding:20px 14px 54px}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .span-2{grid-column:span 1}
+  .card-grid{grid-template-columns:1fr}
+  .map-box{height:310px} .chart-box{height:290px}
+  .modal-box{padding:22px}
+  .toast-wrap{top:auto;bottom:16px;right:12px;left:12px}
+  .stat-card h3{font-size:1.45rem}
+  .page-head h2{font-size:1.12rem}
 }
-
-async function doLogout(){
-  try{ await apiPost('logout', {}); }catch(e){}
-  setAuth('', null);
-  toast('ออกจากระบบแล้ว','info');
-  resetForm();
-  await loadAll();
-  switchView('dashboard');
+@media(max-width:420px){
+  .btn-lg{width:100%}
+  .pc-meta{grid-template-columns:1fr}
+  .stat-card{padding:16px;gap:13px}
+  .stat-ico{width:48px;height:48px;font-size:1.2rem}
 }
-
-/* ================= ROUTER ================= */
-function switchView(name){
-  $('.view').forEach(v => v.classList.remove('active'));
-  $(`#view-${name}`).classList.add('active');
-  $('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  $('#navMenu').classList.remove('open');
-  window.scrollTo({ top:0, behavior:'smooth' });
-  if(name === 'form' && State.map) setTimeout(()=>State.map.invalidateSize(), 250);
-  location.hash = name;
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
 }
-
-/* ================= MODAL ================= */
-function openModal(sel){ $(sel).classList.add('show'); document.body.style.overflow='hidden'; }
-function closeModal(sel){ $(sel).classList.remove('show'); document.body.style.overflow=''; }
-
-/* ================= DASHBOARD ================= */
-async function loadDashboard(){
-  const s = await apiGet('stats');
-  $('#statProjects').textContent = fmtNum(s.totalProjects);
-  $('#statBudget').textContent   = shortNum(s.totalBudget);
-  $('#statSheets').textContent   = fmtNum(s.totalSheets);
-  $('#statAgencies').textContent = fmtNum(s.totalAgencies);
-  renderAgencyChart(s.byAgency);
-  renderYearChart(s.byYear);
-  renderRecent(s.recent);
-}
-
-const PALETTE = ['#38bdf8','#3b82f6','#818cf8','#a855f7','#f472b6','#fb923c','#facc15','#4ade80','#2dd4bf','#f87171'];
-const chartFont = { family:'Prompt', size:11 };
-
-function renderAgencyChart(rows){
-  const ctx = $('#chartAgency');
-  if(State.charts.agency) State.charts.agency.destroy();
-  if(!rows.length){ return; }
-  State.charts.agency = new Chart(ctx, {
-    type:'doughnut',
-    data:{
-      labels: rows.map(r=>r.label),
-      datasets:[{ data: rows.map(r=>r.budget), backgroundColor: PALETTE, borderColor:'rgba(255,255,255,.15)', borderWidth:2, hoverOffset:14 }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false, cutout:'62%',
-      plugins:{
-        legend:{ position:'bottom', labels:{ color:'#cfe0ff', font:chartFont, boxWidth:12, padding:12 } },
-        tooltip:{ callbacks:{ label: c => ` ${c.label}: ${fmtMoney(c.raw)} บาท (${rows[c.dataIndex].count} โครงการ)` } }
-      }
-    }
-  });
-}
-
-function renderYearChart(rows){
-  const ctx = $('#chartYear');
-  if(State.charts.year) State.charts.year.destroy();
-  if(!rows.length) return;
-  State.charts.year = new Chart(ctx, {
-    data:{
-      labels: rows.map(r=>'พ.ศ. '+r.label),
-      datasets:[
-        { type:'bar', label:'จำนวนโครงการ', data: rows.map(r=>r.count),
-          backgroundColor:'rgba(56,189,248,.75)', borderRadius:8, yAxisID:'y' },
-        { type:'line', label:'งบประมาณ (ล้านบาท)', data: rows.map(r=> +(r.budget/1e6).toFixed(2)),
-          borderColor:'#facc15', backgroundColor:'rgba(250,204,21,.2)', tension:.35, fill:true,
-          pointRadius:4, pointBackgroundColor:'#facc15', yAxisID:'y1' }
-      ]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{ color:'#cfe0ff', font:chartFont, boxWidth:12 } } },
-      scales:{
-        x:{ ticks:{ color:'#9fb3d4', font:chartFont }, grid:{ color:'rgba(255,255,255,.06)' } },
-        y:{ position:'left', beginAtZero:true, ticks:{ color:'#9fb3d4', font:chartFont, precision:0 }, grid:{ color:'rgba(255,255,255,.06)' } },
-        y1:{ position:'right', beginAtZero:true, ticks:{ color:'#facc15', font:chartFont }, grid:{ drawOnChartArea:false } }
-      }
-    }
-  });
-}
-
-function renderRecent(rows){
-  const box = $('#recentList');
-  if(!rows || !rows.length){ box.innerHTML = '<div class="empty">ยังไม่มีข้อมูลในระบบ</div>'; return; }
-  box.innerHTML = rows.map(r => `
-    <div class="recent-item" data-id="${esc(r.id)}">
-      <div><b>${esc(r.projectName)}</b><br><span>${esc(r.agency||'-')} · แบบแปลนเลขที่ ${esc(r.planNo||'-')}</span></div>
-      <div style="text-align:right"><span class="chip">ปี ${esc(r.budgetYear)}</span><br><span>${fmtDate(r.timestamp)}</span></div>
-    </div>`).join('');
-  box.querySelectorAll('.recent-item').forEach(el =>
-    el.addEventListener('click', ()=> openDetail(el.dataset.id)));
-}
-
-/* ================= OPTIONS ================= */
-async function loadOptions(){
-  const o = await apiGet('options');
-  State.options = o;
-  const yearOpts   = o.years.map(y=>`<option value="${y}">${y}</option>`).join('');
-  const agencyOpts = o.agencies.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('');
-  $('#budgetYear').innerHTML   = '<option value="">-- เลือกปีงบประมาณ --</option>' + yearOpts;
-  $('#agency').innerHTML       = '<option value="">-- เลือกหน่วยงาน --</option>' + agencyOpts;
-  $('#filterYear').innerHTML   = '<option value="">ทุกปีงบประมาณ</option>' + yearOpts;
-  $('#filterAgency').innerHTML = '<option value="">ทุกหน่วยงาน</option>' + agencyOpts;
-}
-
-/* ================= MAP ================= */
-const DEFAULT_CENTER = [13.7563, 100.5018]; // กรุงเทพฯ
-
-function initMap(){
-  State.map = L.map('map', { scrollWheelZoom:true }).setView(DEFAULT_CENTER, 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(State.map);
-
-  State.map.on('click', e => setMarker(e.latlng.lat, e.latlng.lng));
-  setTimeout(()=>State.map.invalidateSize(), 400);
-}
-
-function setMarker(lat, lng, zoom){
-  lat = +(+lat).toFixed(6); lng = +(+lng).toFixed(6);
-  if(State.marker) State.map.removeLayer(State.marker);
-  State.marker = L.marker([lat,lng], { draggable:true }).addTo(State.map)
-    .bindPopup(`📍 ${lat}, ${lng}`).openPopup();
-  State.marker.on('dragend', ev => {
-    const p = ev.target.getLatLng();
-    $('#lat').value = p.lat.toFixed(6); $('#lng').value = p.lng.toFixed(6);
-    State.marker.setPopupContent(`📍 ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
-  });
-  $('#lat').value = lat; $('#lng').value = lng;
-  if(zoom) State.map.setView([lat,lng], zoom);
-}
-
-async function searchPlace(){
-  const q = $('#mapSearch').value.trim();
-  if(!q) return toast('กรุณาพิมพ์ชื่อสถานที่','warn');
-  try{
-    showLoader('กำลังค้นหาสถานที่...');
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=th&q=${encodeURIComponent(q)}`);
-    const arr = await res.json();
-    if(!arr.length) return toast('ไม่พบสถานที่ที่ค้นหา','warn');
-    setMarker(arr[0].lat, arr[0].lon, 15);
-    toast('พบตำแหน่ง: ' + arr[0].display_name.slice(0,60),'success');
-  }catch(e){ toast('ค้นหาไม่สำเร็จ','error'); }
-  finally{ hideLoader(); }
-}
-
-function useMyLocation(){
-  if(!navigator.geolocation) return toast('อุปกรณ์ไม่รองรับการระบุตำแหน่ง','warn');
-  showLoader('กำลังระบุตำแหน่งปัจจุบัน...');
-  navigator.geolocation.getCurrentPosition(
-    pos => { hideLoader(); setMarker(pos.coords.latitude, pos.coords.longitude, 16); toast('ปักหมุดตำแหน่งปัจจุบันแล้ว','success'); },
-    ()  => { hideLoader(); toast('ไม่สามารถเข้าถึงตำแหน่งได้','error'); },
-    { enableHighAccuracy:true, timeout:10000 }
-  );
-}
-
-/* ================= UPLOAD ================= */
-function buildUploadCards(){
-  $('#uploadGrid').innerHTML = DOC_TYPES.map(d => `
-    <div class="upload-card" id="up-${d.key}">
-      <input type="file" accept="application/pdf,.pdf" id="file-${d.key}">
-      <i class="fa-solid ${d.icon} big"></i>
-      <h5>${d.label}</h5>
-      <small id="name-${d.key}">คลิกเพื่อเลือกไฟล์ PDF</small>
-      <div class="progress" id="pg-${d.key}" style="display:none"><i></i></div>
-      <div class="up-actions" id="act-${d.key}"></div>
-    </div>`).join('');
-
-  DOC_TYPES.forEach(d => {
-    const card = $(`#up-${d.key}`), input = $(`#file-${d.key}`);
-    card.addEventListener('click', e => { if(!e.target.closest('.mini-btn')) input.click(); });
-    input.addEventListener('change', () => handleFile(d, input.files[0]));
-  });
-}
-
-function fileToBase64(file){
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result.split(',')[1]);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
-async function handleFile(doc, file){
-  if(!file) return;
-  if(file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf'))
-    return toast('อนุญาตเฉพาะไฟล์ PDF เท่านั้น','error');
-  if(file.size > 20*1024*1024)
-    return toast('ไฟล์ใหญ่เกิน 20 MB','error');
-  if(!isAdmin()) return toast('กรุณาเข้าสู่ระบบก่อนอัปโหลด','warn');
-
-  const pg = $(`#pg-${doc.key}`), bar = pg.querySelector('i');
-  pg.style.display='block'; bar.style.width='25%';
-  $(`#name-${doc.key}`).textContent = 'กำลังอัปโหลด...';
-
-  try{
-    const b64 = await fileToBase64(file);
-    bar.style.width = '60%';
-    const res = await apiPost('upload', {
-      base64:b64, mimeType:'application/pdf', fileName:file.name,
-      docType: doc.label, budgetYear: $('#budgetYear').value || 'ไม่ระบุ',
-      planNo: $('#planNo').value || ''
-    });
-    bar.style.width = '100%';
-    State.uploads[doc.key] = res.viewUrl;
-    markUploaded(doc, res.name || file.name, res.viewUrl);
-    toast(`อัปโหลด "${doc.label}" สำเร็จ`,'success');
-  }catch(err){
-    toast(err.message,'error');
-    $(`#name-${doc.key}`).textContent = 'คลิกเพื่อเลือกไฟล์ PDF';
-  }finally{
-    setTimeout(()=>{ pg.style.display='none'; bar.style.width='0'; }, 700);
-  }
-}
-
-function markUploaded(doc, name, url){
-  $(`#up-${doc.key}`).classList.add('done');
-  $(`#name-${doc.key}`).textContent = name;
-  $(`#act-${doc.key}`).innerHTML = `
-    <a class="mini-btn" href="${url}" target="_blank" rel="noopener"><i class="fa-solid fa-eye"></i> เปิดดู</a>
-    <button type="button" class="mini-btn danger" onclick="clearUpload('${doc.key}')"><i class="fa-solid fa-trash"></i> ลบ</button>`;
-}
-
-function clearUpload(key){
-  const doc = DOC_TYPES.find(d=>d.key===key);
-  State.uploads[key] = null;
-  $(`#up-${key}`).classList.remove('done');
-  $(`#name-${key}`).textContent = 'คลิกเพื่อเลือกไฟล์ PDF';
-  $(`#act-${key}`).innerHTML = '';
-  $(`#file-${key}`).value = '';
-  toast(`ยกเลิกไฟล์ "${doc.label}" แล้ว`,'info');
-}
-window.clearUpload = clearUpload;
-
-/* ================= FORM ================= */
-function initBudgetFormat(){
-  const el = $('#budget');
-  el.addEventListener('input', () => {
-    let v = el.value.replace(/[^\d.]/g,'');
-    const parts = v.split('.');
-    v = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1]!==undefined ? '.'+parts[1].slice(0,2) : '');
-    el.value = v;
-  });
-  el.addEventListener('blur', () => {
-    const n = parseFloat(el.value.replace(/,/g,''));
-    el.value = isNaN(n) ? '' : fmtMoney(n);
-  });
-}
-
-function resetForm(){
-  $('#projectForm').reset();
-  $('#recordId').value = '';
-  State.editing = null;
-  State.uploads = { approval:null, blueprint:null, estimate:null };
-  DOC_TYPES.forEach(d => {
-    $(`#up-${d.key}`).classList.remove('done');
-    $(`#name-${d.key}`).textContent = 'คลิกเพื่อเลือกไฟล์ PDF';
-    $(`#act-${d.key}`).innerHTML = '';
-  });
-  if(State.marker){ State.map.removeLayer(State.marker); State.marker = null; }
-  $('#lat').value = ''; $('#lng').value = '';
-  $('#formTitle').textContent = 'บันทึกข้อมูลแบบแปลน';
-  $('#btnSubmit').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล';
-  $('#btnCancelEdit').style.display = 'none';
-}
-
-async function submitForm(e){
-  e.preventDefault();
-  if(!isAdmin()) return toast('กรุณาเข้าสู่ระบบก่อน','warn');
-
-  const data = {
-    id          : $('#recordId').value || '',
-    projectName : $('#projectName').value.trim(),
-    budgetYear  : $('#budgetYear').value,
-    planNo      : $('#planNo').value.trim(),
-    sheetCount  : Number($('#sheetCount').value) || 0,
-    budget      : parseFloat(($('#budget').value||'0').replace(/,/g,'')) || 0,
-    agency      : $('#agency').value,
-    note        : $('#note').value.trim(),
-    lat         : $('#lat').value, lng: $('#lng').value
-  };
-  DOC_TYPES.forEach(d => { if(State.uploads[d.key] !== null) data[d.field] = State.uploads[d.key] || ''; });
-
-  if(!data.projectName) return toast('กรุณากรอกชื่อโครงการ','warn');
-  if(!data.budgetYear)  return toast('กรุณาเลือกปีงบประมาณ','warn');
-  if(!data.agency)      return toast('กรุณาเลือกหน่วยงานเจ้าของงบประมาณ','warn');
-
-  try{
-    showLoader('กำลังบันทึกข้อมูล...');
-    const res = await apiPost('save', { data });
-    toast(res.message,'success');
-    resetForm();
-    await loadAll();
-    switchView('data');
-  }catch(err){ toast(err.message,'error'); }
-  finally{ hideLoader(); }
-}
-
-function fillFormForEdit(item){
-  if(!isAdmin()) return;
-  State.editing = item.id;
-  $('#recordId').value    = item.id;
-  $('#projectName').value = item.projectName || '';
-  $('#budgetYear').value  = item.budgetYear || '';
-  $('#planNo').value      = item.planNo || '';
-  $('#sheetCount').value  = item.sheetCount || '';
-  $('#budget').value      = item.budget ? fmtMoney(item.budget) : '';
-  $('#agency').value      = item.agency || '';
-  $('#note').value        = item.note || '';
-
-  State.uploads = { approval:item.approvalUrl||null, blueprint:item.blueprintUrl||null, estimate:item.estimateUrl||null };
-  DOC_TYPES.forEach(d => {
-    const url = State.uploads[d.key];
-    if(url) markUploaded(d, 'ไฟล์เดิมในระบบ', url);
-    else { $(`#up-${d.key}`).classList.remove('done'); $(`#name-${d.key}`).textContent='คลิกเพื่อเลือกไฟล์ PDF'; $(`#act-${d.key}`).innerHTML=''; }
-  });
-
-  $('#formTitle').textContent = 'แก้ไขข้อมูลแบบแปลน';
-  $('#btnSubmit').innerHTML = '<i class="fa-solid fa-pen-to-square"></i> อัปเดตข้อมูล';
-  $('#btnCancelEdit').style.display = 'inline-flex';
-
-  closeModal('#detailModal');
-  switchView('form');
-  setTimeout(()=>{
-    State.map.invalidateSize();
-    if(item.lat && item.lng) setMarker(item.lat, item.lng, 15);
-  }, 350);
-}
-
-/* ================= DATA LIST ================= */
-async function loadList(){
-  const d = await apiGet('list');
-  State.items = d.items || [];
-  applyFilter();
-}
-
-function applyFilter(){
-  const q  = $('#searchInput').value.trim().toLowerCase();
-  const fy = $('#filterYear').value;
-  const fa = $('#filterAgency').value;
-  const sb = $('#sortBy').value;
-
-  let list = State.items.filter(it => {
-    const hay = [it.projectName, it.planNo, it.agency, it.budgetYear, it.id].join(' ').toLowerCase();
-    return (!q || hay.includes(q)) &&
-           (!fy || String(it.budgetYear) === String(fy)) &&
-           (!fa || it.agency === fa);
-  });
-
-  const cmp = {
-    newest     : (a,b)=> new Date(b.timestamp) - new Date(a.timestamp),
-    oldest     : (a,b)=> new Date(a.timestamp) - new Date(b.timestamp),
-    budget_desc: (a,b)=> (b.budget||0) - (a.budget||0),
-    budget_asc : (a,b)=> (a.budget||0) - (b.budget||0),
-    name       : (a,b)=> String(a.projectName).localeCompare(String(b.projectName),'th')
-  }[sb];
-  if(cmp) list.sort(cmp);
-
-  State.filtered = list;
-  $('#resultCount').textContent = fmtNum(list.length);
-  renderList();
-}
-
-function renderList(){
-  if(State.viewMode === 'card') renderCards(); else renderTable();
-}
-
-function fileChips(it){
-  return DOC_TYPES.map(d => {
-    const has = !!it[d.field];
-    return `<span class="file-dot ${has?'':'off'}"><i class="fa-solid fa-file-pdf"></i> ${d.label}</span>`;
-  }).join('');
-}
-
-function renderCards(){
-  $('#cardWrap').classList.remove('hidden');
-  $('#tableWrap').classList.add('hidden');
-  const box = $('#cardWrap');
-  if(!State.filtered.length){
-    box.innerHTML = '<div class="glass panel empty"><i class="fa-solid fa-folder-open" style="font-size:2rem;display:block;margin-bottom:10px"></i>ไม่พบข้อมูลที่ตรงกับเงื่อนไข</div>';
-    return;
-  }
-  box.innerHTML = State.filtered.map(it => `
-    <article class="p-card" data-id="${esc(it.id)}">
-      <div class="pc-top">
-        <h5>${esc(it.projectName)}</h5>
-        <span class="chip">ปี ${esc(it.budgetYear)}</span>
-      </div>
-      <div class="pc-meta">
-        <span>แบบแปลนเลขที่<b>${esc(it.planNo || '-')}</b></span>
-        <span>จำนวนแผ่น<b>${fmtNum(it.sheetCount)} แผ่น</b></span>
-        <span style="grid-column:span 2">หน่วยงาน<b>${esc(it.agency || '-')}</b></span>
-      </div>
-      <div class="${it.budgetHidden ? 'pc-budget hide' : 'pc-budget'}">
-        ${it.budgetHidden ? '<i class="fa-solid fa-lock"></i> งบประมาณ (เฉพาะเจ้าหน้าที่)' : '฿ ' + fmtMoney(it.budget)}
-      </div>
-      <div class="pc-files">${fileChips(it)}</div>
-    </article>`).join('');
-  box.querySelectorAll('.p-card').forEach(el =>
-    el.addEventListener('click', ()=> openDetail(el.dataset.id)));
-}
-
-function renderTable(){
-  $('#cardWrap').classList.add('hidden');
-  $('#tableWrap').classList.remove('hidden');
-  const tb = $('#tableBody');
-  if(!State.filtered.length){
-    tb.innerHTML = '<tr><td colspan="8" class="empty">ไม่พบข้อมูลที่ตรงกับเงื่อนไข</td></tr>';
-    return;
-  }
-  tb.innerHTML = State.filtered.map((it,i) => `
-    <tr>
-      <td>${i+1}</td>
-      <td>${esc(it.projectName)}</td>
-      <td>${esc(it.budgetYear)}</td>
-      <td>${esc(it.planNo || '-')}</td>
-      <td class="num">${fmtNum(it.sheetCount)}</td>
-      <td class="num">${it.budgetHidden ? '<i class="fa-solid fa-lock"></i>' : fmtMoney(it.budget)}</td>
-      <td>${esc(it.agency || '-')}</td>
-      <td><button class="mini-btn" data-id="${esc(it.id)}"><i class="fa-solid fa-eye"></i> รายละเอียด</button></td>
-    </tr>`).join('');
-  tb.querySelectorAll('button[data-id]').forEach(b =>
-    b.addEventListener('click', ()=> openDetail(b.dataset.id)));
-}
-
-/* ================= AUTOCOMPLETE ================= */
-function renderSuggest(){
-  const q = $('#searchInput').value.trim().toLowerCase();
-  const box = $('#suggestBox');
-  if(q.length < 2){ box.classList.remove('show'); return; }
-  const hits = State.items.filter(it =>
-    (it.projectName + ' ' + it.planNo + ' ' + it.agency).toLowerCase().includes(q)).slice(0,7);
-  if(!hits.length){ box.classList.remove('show'); return; }
-  box.innerHTML = hits.map(it => `
-    <div class="suggest-item" data-id="${esc(it.id)}">
-      ${esc(it.projectName)}
-      <small>ปี ${esc(it.budgetYear)} · ${esc(it.planNo||'-')} · ${esc(it.agency||'-')}</small>
-    </div>`).join('');
-  box.classList.add('show');
-  box.querySelectorAll('.suggest-item').forEach(el =>
-    el.addEventListener('click', () => { box.classList.remove('show'); openDetail(el.dataset.id); }));
-}
-
-/* ================= DETAIL ================= */
-function openDetail(id){
-  const it = State.items.find(x => String(x.id) === String(id));
-  if(!it) return toast('ไม่พบข้อมูลโครงการ','error');
-  const admin = isAdmin();
-
-  const fileHtml = DOC_TYPES.map(d => {
-    const url = it[d.field];
-    if(url) return `<a class="file-btn" href="${url}" target="_blank" rel="noopener">
-        <i class="fa-solid fa-file-pdf"></i><span>${d.label}</span><i class="fa-solid fa-arrow-up-right-from-square"></i></a>`;
-    const locked = !admin && (d.key === 'approval' || d.key === 'estimate');
-    return `<div class="file-btn locked">
-        <i class="fa-solid ${locked ? 'fa-lock':'fa-file-circle-xmark'}"></i>
-        <span>${d.label} — ${locked ? 'เฉพาะเจ้าหน้าที่' : 'ยังไม่มีไฟล์แนบ'}</span></div>`;
-  }).join('');
-
-  $('#detailContent').innerHTML = `
-    <div class="detail-head">
-      <h3>${esc(it.projectName)}</h3>
-      <div class="chips">
-        <span class="chip">รหัส ${esc(it.id)}</span>
-        <span class="chip">ปีงบประมาณ ${esc(it.budgetYear)}</span>
-        <span class="chip">${esc(it.agency || '-')}</span>
-      </div>
-    </div>
-    <div class="detail-grid">
-      <div class="d-item"><small>แบบแปลนเลขที่</small><b>${esc(it.planNo || '-')}</b></div>
-      <div class="d-item"><small>จำนวนแผ่น</small><b>${fmtNum(it.sheetCount)} แผ่น</b></div>
-      <div class="d-item"><small>จำนวนเงินงบประมาณ</small><b>${it.budgetHidden ? '<i class="fa-solid fa-lock"></i> เฉพาะเจ้าหน้าที่' : '฿ ' + fmtMoney(it.budget)}</b></div>
-      <div class="d-item"><small>พิกัดที่ตั้ง</small><b>${it.lat && it.lng ? it.lat + ', ' + it.lng : 'ไม่ระบุ'}</b></div>
-      <div class="d-item"><small>บันทึกเมื่อ</small><b>${fmtDate(it.timestamp)}</b></div>
-      <div class="d-item"><small>แก้ไขล่าสุด</small><b>${fmtDate(it.updatedAt)}${it.updatedBy ? ' · ' + esc(it.updatedBy) : ''}</b></div>
-      ${it.note ? `<div class="d-item" style="grid-column:1/-1"><small>หมายเหตุ</small><b>${esc(it.note)}</b></div>` : ''}
-    </div>
-    ${it.lat && it.lng ? '<div id="detailMap"></div>' : ''}
-    <h4 style="margin-bottom:12px"><i class="fa-solid fa-paperclip"></i> เอกสารแนบ</h4>
-    <div class="file-btns">${fileHtml}</div>
-    ${admin ? `<div class="detail-actions">
-        <button class="btn btn-primary" id="btnEditItem"><i class="fa-solid fa-pen-to-square"></i> แก้ไขข้อมูล</button>
-        <button class="btn btn-danger" id="btnDeleteItem"><i class="fa-solid fa-trash"></i> ลบรายการ</button>
-      </div>` : ''}
-  `;
-  openModal('#detailModal');
-
-  if(it.lat && it.lng){
-    setTimeout(()=>{
-      if(State.detailMap){ State.detailMap.remove(); State.detailMap = null; }
-      State.detailMap = L.map('detailMap', { scrollWheelZoom:false }).setView([it.lat, it.lng], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; OSM' }).addTo(State.detailMap);
-      L.marker([it.lat, it.lng]).addTo(State.detailMap).bindPopup(esc(it.projectName)).openPopup();
-      State.detailMap.invalidateSize();
-    }, 150);
-  }
-
-  if(admin){
-    $('#btnEditItem').addEventListener('click', ()=> fillFormForEdit(it));
-    $('#btnDeleteItem').addEventListener('click', ()=> deleteItem(it));
-  }
-}
-
-async function deleteItem(it){
-  if(!confirm(`ยืนยันการลบโครงการ\n"${it.projectName}" ?\n(ไฟล์ใน Google Drive จะยังคงอยู่)`)) return;
-  try{
-    showLoader('กำลังลบข้อมูล...');
-    const res = await apiPost('delete', { id: it.id });
-    toast(res.message,'success');
-    closeModal('#detailModal');
-    await loadAll();
-  }catch(err){ toast(err.message,'error'); }
-  finally{ hideLoader(); }
-}
-
-/* ================= LOAD ALL ================= */
-async function loadAll(){
-  try{
-    showLoader('กำลังโหลดข้อมูลจากเซิร์ฟเวอร์...');
-    await Promise.all([ loadDashboard(), loadList() ]);
-  }catch(err){
-    toast('เชื่อมต่อ API ไม่สำเร็จ: ' + err.message, 'error');
-  }finally{ hideLoader(); }
-}
-
-/* ================= INIT ================= */
-document.addEventListener('DOMContentLoaded', async () => {
-  buildUploadCards();
-  initBudgetFormat();
-  initMap();
-
-  // Navigation
-  $('.nav-btn').forEach(b => b.addEventListener('click', ()=> switchView(b.dataset.view)));
-  $('#btnBurger').addEventListener('click', ()=> $('#navMenu').classList.toggle('open'));
-
-  // Auth
-  $('#btnLogin').addEventListener('click', ()=> openModal('#loginModal'));
-  $('#btnLogout').addEventListener('click', doLogout);
-  $('#loginForm').addEventListener('submit', doLogin);
-  $('#togglePwd').addEventListener('click', () => {
-    const i = $('#loginPass');
-    i.type = i.type === 'password' ? 'text' : 'password';
-    $('#togglePwd').innerHTML = `<i class="fa-solid fa-eye${i.type==='password'?'':'-slash'}"></i>`;
-  });
-
-  // Modal close
-  $('[data-close]').forEach(b => b.addEventListener('click', e => closeModal('#'+e.target.closest('.modal').id)));
-  $('.modal').forEach(m => m.addEventListener('click', e => { if(e.target === m) closeModal('#'+m.id); }));
-  document.addEventListener('keydown', e => { if(e.key === 'Escape') $('.modal.show').forEach(m => closeModal('#'+m.id)); });
-
-  // Form
-  $('#projectForm').addEventListener('submit', submitForm);
-  $('#btnResetForm').addEventListener('click', ()=>{ resetForm(); toast('ล้างฟอร์มแล้ว','info'); });
-  $('#btnCancelEdit').addEventListener('click', ()=>{ resetForm(); toast('ยกเลิกการแก้ไข','info'); });
-
-  // Map tools
-  $('#btnMapSearch').addEventListener('click', searchPlace);
-  $('#mapSearch').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); searchPlace(); } });
-  $('#btnMyLocation').addEventListener('click', useMyLocation);
-
-  // Search & filter
-  let t;
-  $('#searchInput').addEventListener('input', () => {
-    clearTimeout(t);
-    $('#btnClearSearch').classList.toggle('hidden', !$('#searchInput').value);
-    t = setTimeout(()=>{ applyFilter(); renderSuggest(); }, 220);
-  });
-  $('#btnClearSearch').addEventListener('click', () => {
-    $('#searchInput').value=''; $('#btnClearSearch').classList.add('hidden');
-    $('#suggestBox').classList.remove('show'); applyFilter();
-  });
-  document.addEventListener('click', e => { if(!e.target.closest('.search-wrap')) $('#suggestBox').classList.remove('show'); });
-  ['#filterYear','#filterAgency','#sortBy'].forEach(s => $(s).addEventListener('change', applyFilter));
-  $('#btnResetFilter').addEventListener('click', () => {
-    $('#searchInput').value=''; $('#filterYear').value=''; $('#filterAgency').value=''; $('#sortBy').value='newest';
-    applyFilter(); toast('ล้างตัวกรองแล้ว','info');
-  });
-  $('.tg').forEach(b => b.addEventListener('click', () => {
-    $('.tg').forEach(x => x.classList.remove('active'));
-    b.classList.add('active'); State.viewMode = b.dataset.mode; renderList();
-  }));
-
-  $('#btnRefresh').addEventListener('click', loadAll);
-
-  // ตรวจสอบ token เดิม
-  if(State.token){
-    try{
-      const v = await apiGet('verify');
-      if(v.user) setAuth(State.token, v.user); else setAuth('', null);
-    }catch(e){ setAuth('', null); }
-  } else applyAuthUI();
-
-  await loadOptions();
-  await loadAll();
-
-  const h = (location.hash || '#dashboard').replace('#','');
-  if(['dashboard','form','data'].includes(h)) switchView(h);
-});
