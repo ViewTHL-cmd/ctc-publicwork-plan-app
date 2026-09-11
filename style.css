@@ -1,99 +1,60 @@
-/* Base Styles & Theme */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Prompt', sans-serif;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Prompt', sans-serif; }
+body { background: linear-gradient(135deg, #001f3f 0%, #3a7bd5 100%); min-height: 100vh; color: #fff; background-attachment: fixed; }
 
-body {
-    background: linear-gradient(135deg, #001f3f 0%, #3a7bd5 100%);
-    min-height: 100vh;
-    color: #fff;
-    background-attachment: fixed;
-}
+.glass-nav { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
+.glass-panel { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 15px; padding: 2rem; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); }
 
-/* Glassmorphism Classes */
-.glass-nav {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 1rem 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-}
-
-.glass-panel {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 15px;
-    padding: 2rem;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-}
-
-/* Typography & Layout */
 .logo { font-size: 1.5rem; font-weight: 600; }
-.nav-links button {
-    background: transparent; border: none; color: white;
-    font-size: 1rem; margin-left: 1rem; cursor: pointer;
-    transition: 0.3s;
-}
+.nav-links button { background: transparent; border: none; color: white; font-size: 1rem; margin-left: 1rem; cursor: pointer; transition: 0.3s; }
 .nav-links button:hover { color: #a8c0ff; }
-
 .container { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
 .hidden { display: none !important; }
 
-/* Dashboard Cards */
+/* Dashboard & Form */
 .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
-.card {
-    background: rgba(255,255,255,0.15); padding: 1.5rem;
-    border-radius: 10px; text-align: center;
-}
-.card h3 { font-size: 1rem; opacity: 0.8; }
+.card { background: rgba(255,255,255,0.15); padding: 1.5rem; border-radius: 10px; text-align: center; }
 .card p { font-size: 2rem; font-weight: 600; margin-top: 0.5rem; }
 .chart-container { background: rgba(255,255,255,0.9); border-radius: 10px; padding: 1rem; margin-top: 2rem; height: 400px; }
 
-/* Forms */
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
 .input-group { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
-input, select {
-    padding: 0.8rem; border-radius: 8px; border: none;
-    background: rgba(255, 255, 255, 0.9); font-family: 'Prompt'; font-size: 1rem;
-}
+input, select { padding: 0.8rem; border-radius: 8px; border: none; background: rgba(255, 255, 255, 0.9); font-family: 'Prompt'; font-size: 1rem; outline: none; }
+input:focus, select:focus { box-shadow: 0 0 0 2px #a8c0ff; }
 input[type="file"] { background: rgba(255, 255, 255, 0.2); color: white; }
 
-/* Map */
-#map { height: 300px; border-radius: 10px; margin: 1rem 0; z-index: 1;}
+#map { height: 350px; border-radius: 10px; margin: 1rem 0; z-index: 1;}
 .coord-inputs { display: flex; gap: 1rem; }
-.coord-inputs input { flex: 1; }
-
-.submit-btn {
-    background: #3a7bd5; color: white; border: none; padding: 1rem 2rem;
-    border-radius: 8px; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 1.5rem;
-    transition: 0.3s;
-}
+.coord-inputs input { flex: 1; background: rgba(255,255,255,0.5); }
+.submit-btn { background: #3a7bd5; color: white; border: none; padding: 1rem 2rem; border-radius: 8px; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 1.5rem; transition: 0.3s; }
 .submit-btn:hover { background: #2c5da6; }
 
 /* Table */
 .search-filters { display: flex; gap: 1rem; margin: 1.5rem 0; flex-wrap: wrap; }
 .search-filters input, .search-filters select { flex: 1; min-width: 200px; }
-.table-responsive { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+.table-responsive { overflow-x: auto; background: rgba(255,255,255,0.05); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; }
 th, td { padding: 1rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
-th { background: rgba(0,0,0,0.2); }
-.file-links a { color: #a8c0ff; text-decoration: none; margin-right: 10px; display: inline-block;}
-.file-links a:hover { text-decoration: underline; }
+th { background: rgba(0,0,0,0.3); white-space: nowrap; }
+.file-links a { color: #82aaff; text-decoration: none; margin-right: 10px; display: inline-block; background: rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 5px; font-size: 0.85rem;}
+.file-links a:hover { background: rgba(255,255,255,0.2); }
 
 /* Modal */
-.modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.5); z-index: 2000; }
-.modal-content { background: #001f3f; padding: 2rem; border-radius: 15px; width: 300px; display: flex; flex-direction: column; gap: 1rem; border: 1px solid rgba(255, 255, 255, 0.2); }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; }
+.modal-content { background: #001f3f; padding: 2rem; border-radius: 15px; width: 90%; max-width: 350px; display: flex; flex-direction: column; gap: 1rem; border: 1px solid rgba(255, 255, 255, 0.2); }
 .modal-actions { display: flex; gap: 1rem; }
-.modal-actions button { flex: 1; padding: 0.5rem; border-radius: 5px; border: none; cursor: pointer; }
+.modal-actions button { flex: 1; padding: 0.8rem; border-radius: 8px; border: none; cursor: pointer; font-family: 'Prompt'; }
 .modal-actions button:first-child { background: #3a7bd5; color: white; }
+.modal-actions .cancel-btn { background: #555; color: white; }
+
+/* UI Status & Loader */
+.loader-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+.spinner { width: 50px; height: 50px; border: 5px solid rgba(255, 255, 255, 0.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s infinite linear; margin-bottom: 1rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast */
+#toastContainer { position: fixed; bottom: 20px; right: 20px; z-index: 9998; display: flex; flex-direction: column; gap: 10px; }
+.toast { background: rgba(255,255,255,0.95); color: #333; padding: 15px 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); font-weight: 500; transform: translateX(120%); animation: slideIn 0.3s forwards; }
+.toast.success { border-left: 6px solid #4CAF50; }
+.toast.error { border-left: 6px solid #F44336; }
+@keyframes slideIn { to { transform: translateX(0); } }
+@keyframes slideOut { to { transform: translateX(120%); opacity: 0; } }
