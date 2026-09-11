@@ -1,6 +1,6 @@
 // ==========================================
 // ⚠️ ใส่ Web App URL ที่ได้จาก GAS ตรงนี้
-const GAS_URL = "YOUR_WEB_APP_URL_HERE";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxQe_86sY1R6_XdADeFl5ezrVfo4wCw06aFDBakeVsfwjcr6cS-UhX1itg2Sib3CEZt/exec";
 // ==========================================
 
 let map;
