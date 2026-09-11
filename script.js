@@ -1,5 +1,5 @@
 // ==========================================
-// ⚠️ ใส่ Web App URL ที่ได้จาก GAS ตรงนี้
+// ลิงก์ Web App URL (GAS) ของคุณ
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxQe_86sY1R6_XdADeFl5ezrVfo4wCw06aFDBakeVsfwjcr6cS-UhX1itg2Sib3CEZt/exec";
 // ==========================================
 
@@ -8,22 +8,32 @@ let marker;
 let appData = [];
 let chartInstance = null;
 
-// SPA Navigation
+// SPA Navigation (ระบบเปลี่ยนหน้า)
 function navigate(sectionId) {
+    // 1. ซ่อนทุก Section
     document.querySelectorAll('.page-section').forEach(sec => sec.classList.add('hidden'));
+    
+    // 2. แสดง Section ที่เลือก
     document.getElementById(sectionId).classList.remove('hidden');
     
-    if(sectionId === 'add-form' && !map) {
-        initMap();
+    // 3. จัดการการโหลดแผนที่ (แก้บัคแผนที่เทาตอนสลับหน้า)
+    if (sectionId === 'add-form') {
+        if (!map) {
+            initMap();
+        } else {
+            setTimeout(() => { map.invalidateSize(); }, 200);
+        }
     }
-    if(sectionId === 'dashboard') {
-        fetchData(); // Refresh data on dashboard load
+    
+    // 4. รีเฟรชข้อมูลเมื่อเข้าหน้าแรกหรือหน้าค้นหา
+    if (sectionId === 'dashboard' || sectionId === 'search') {
+        fetchData(); 
     }
 }
 
 // Map Initialization (Leaflet)
 function initMap() {
-    // Default location (Thailand center)
+    // ตั้งค่าพิกัดเริ่มต้น (ประเทศไทย)
     map = L.map('map').setView([13.7563, 100.5018], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
@@ -37,7 +47,7 @@ function initMap() {
     });
 }
 
-// Format Currency Utility
+// Format Currency Utility (ใส่ลูกน้ำอัตโนมัติ)
 function formatCurrency(input) {
     let value = input.value.replace(/,/g, '');
     if (!isNaN(value) && value !== '') {
@@ -45,19 +55,23 @@ function formatCurrency(input) {
     }
 }
 
-// File to Base64
+// แปลงไฟล์ PDF เป็น Base64
 const toBase64 = file => new Promise((resolve, reject) => {
+    if (!file) {
+        resolve("");
+        return;
+    }
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => resolve(reader.result);
     reader.onerror = error => reject(error);
 });
 
-// Form Submit Handler
+// จัดการฟอร์มเมื่อกดบันทึกข้อมูล
 document.getElementById('constructionForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
-    btn.innerText = "กำลังบันทึกและอัปโหลดไฟล์...";
+    btn.innerText = "กำลังบันทึกและอัปโหลดไฟล์ (อาจใช้เวลาสักครู่)...";
     btn.disabled = true;
 
     try {
@@ -83,26 +97,31 @@ document.getElementById('constructionForm').addEventListener('submit', async (e)
         const result = await response.json();
         
         if(result.status === "success") {
-            alert("บันทึกข้อมูลเรียบร้อยแล้ว");
+            alert("✅ บันทึกข้อมูลและอัปโหลดไฟล์เรียบร้อยแล้ว");
             document.getElementById('constructionForm').reset();
             if(marker) map.removeLayer(marker);
             navigate('dashboard');
+        } else {
+            alert("❌ เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: " + result.message);
         }
     } catch (error) {
-        alert("เกิดข้อผิดพลาด: " + error);
+        alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: " + error);
     } finally {
         btn.innerText = "บันทึกข้อมูล";
         btn.disabled = false;
     }
 });
 
-// Fetch Data for Dashboard & Search
+// ดึงข้อมูลมาแสดงผล (Dashboard & Search)
 async function fetchData() {
     try {
         const response = await fetch(GAS_URL);
-        appData = await response.json();
+        const data = await response.json();
         
-        // Update Dashboard
+        // ป้องกัน Error กรณี Sheet ยังไม่มีข้อมูล (จะรีเทิร์นเป็น Array ว่าง)
+        appData = Array.isArray(data) ? data : [];
+        
+        // อัปเดต Dashboard
         document.getElementById('total-projects').innerText = appData.length;
         const totalBudget = appData.reduce((sum, item) => sum + Number(item.Budget || 0), 0);
         document.getElementById('total-budget').innerText = totalBudget.toLocaleString('en-US');
@@ -111,17 +130,20 @@ async function fetchData() {
         renderTable(appData);
     } catch (error) {
         console.error("Error fetching data: ", error);
+        // ไม่ให้โชว์ alert กวนใจตอนเพิ่งเข้าเว็บ แต่ดู error ได้ที่ Console
     }
 }
 
-// Render Chart.js
+// สร้างกราฟสรุปงบประมาณตามหน่วยงาน
 function renderChart() {
     const ctx = document.getElementById('budgetChart');
     if(chartInstance) chartInstance.destroy();
 
-    // Group by Department
+    if(appData.length === 0) return; // ถ้าไม่มีข้อมูลไม่ต้องเรนเดอร์กราฟ
+
     const deptData = appData.reduce((acc, curr) => {
-        acc[curr.Department] = (acc[curr.Department] || 0) + 1;
+        const dept = curr.Department || "ไม่ระบุ";
+        acc[dept] = (acc[dept] || 0) + 1;
         return acc;
     }, {});
 
@@ -131,25 +153,37 @@ function renderChart() {
             labels: Object.keys(deptData),
             datasets: [{
                 data: Object.values(deptData),
-                backgroundColor: ['#004e92', '#3a7bd5', '#a8c0ff'],
+                backgroundColor: ['#004e92', '#3a7bd5', '#a8c0ff', '#ffffff'],
                 borderWidth: 0
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: 'white', font: { family: 'Prompt' } } }
+            }
+        }
     });
 }
 
-// Render Table
+// เรนเดอร์ตาราง
 function renderTable(data) {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
+    
+    if(data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">ยังไม่มีข้อมูลโครงการ</td></tr>';
+        return;
+    }
+
     data.forEach(item => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td>${item.FiscalYear}</td>
-            <td>${item.PlanNo}</td>
-            <td>${item.ProjectName}</td>
-            <td>${Number(item.Budget).toLocaleString('en-US')}</td>
+            <td>${item.FiscalYear || '-'}</td>
+            <td>${item.PlanNo || '-'}</td>
+            <td>${item.ProjectName || '-'}</td>
+            <td>${Number(item.Budget || 0).toLocaleString('en-US')}</td>
             <td class="file-links">
                 ${item.ApprovalFile ? `<a href="${item.ApprovalFile}" target="_blank">📄 ขออนุมัติ</a>` : ''}
                 ${item.PlanFile ? `<a href="${item.PlanFile}" target="_blank">📄 แบบแปลน</a>` : ''}
@@ -160,13 +194,15 @@ function renderTable(data) {
     });
 }
 
-// Filter Data
+// ระบบ Filter ค้นหา
 function filterData() {
     const searchTxt = document.getElementById('searchInput').value.toLowerCase();
     const yearFilter = document.getElementById('filterYear').value;
     
     const filtered = appData.filter(item => {
-        const matchSearch = item.ProjectName.toLowerCase().includes(searchTxt) || item.PlanNo.toLowerCase().includes(searchTxt);
+        const projectName = (item.ProjectName || "").toLowerCase();
+        const planNo = (item.PlanNo || "").toLowerCase();
+        const matchSearch = projectName.includes(searchTxt) || planNo.includes(searchTxt);
         const matchYear = yearFilter ? item.FiscalYear == yearFilter : true;
         return matchSearch && matchYear;
     });
@@ -174,7 +210,9 @@ function filterData() {
     renderTable(filtered);
 }
 
-// Auth System (Simple SPA Admin logic)
+// ----------------------------------------------------
+// ระบบ Login อย่างง่าย (Session)
+// ----------------------------------------------------
 function toggleLoginModal() {
     document.getElementById('loginModal').classList.toggle('hidden');
 }
@@ -183,7 +221,6 @@ async function login() {
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
     
-    // จำลองการเช็คกับ GAS
     try {
         const response = await fetch(GAS_URL, {
             method: 'POST',
@@ -195,10 +232,14 @@ async function login() {
             sessionStorage.setItem('role', 'admin');
             toggleLoginModal();
             checkAuth();
+            alert("เข้าสู่ระบบสำเร็จ");
         } else {
             alert("รหัสผ่านไม่ถูกต้อง");
         }
-    } catch(e) { console.error(e); }
+    } catch(e) { 
+        alert("เกิดข้อผิดพลาดในการเข้าสู่ระบบ"); 
+        console.error(e);
+    }
 }
 
 function logout() {
@@ -220,8 +261,10 @@ function checkAuth() {
     }
 }
 
-// Init
+// ----------------------------------------------------
+// ทำงานเมื่อโหลดหน้าเว็บครั้งแรก
+// ----------------------------------------------------
 window.onload = () => {
     checkAuth();
-    fetchData();
+    fetchData(); // ดึงข้อมูลทันทีเมื่อเปิดหน้าเว็บ
 };
