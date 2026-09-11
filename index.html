@@ -3,28 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<meta name="theme-color" content="#0c2154">
+<meta name="theme-color" content="#dceeff">
 <title>ระบบบันทึกข้อมูลแบบแปลนงานก่อสร้าง</title>
-<meta name="description" content="ระบบจัดเก็บและสืบค้นข้อมูลแบบแปลนงานก่อสร้าง พร้อมแผนที่และเอกสารแนบ">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
-
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
-<!-- แถบแจ้งสถานะการเชื่อมต่อ -->
 <div id="netBanner" class="net-banner hidden">
-  <i class="fa-solid fa-wifi"></i>
-  <span id="netText">ขาดการเชื่อมต่ออินเทอร์เน็ต</span>
+  <i class="fa-solid fa-wifi"></i> <span id="netText">ขาดการเชื่อมต่ออินเทอร์เน็ต</span>
 </div>
 
-<!-- ออร์บพื้นหลัง -->
-<div class="bg-orbs"><span></span><span></span><span></span></div>
+<div class="bg-orbs"><span></span><span></span><span></span><span></span></div>
 
 <!-- ================= HEADER ================= -->
 <header class="topbar">
@@ -37,21 +32,21 @@
   </div>
 
   <nav class="nav" id="navMenu">
-    <button class="nav-btn active" data-view="dashboard"><i class="fa-solid fa-chart-pie"></i><span>แดชบอร์ด</span></button>
-    <button class="nav-btn" data-view="form"><i class="fa-solid fa-file-pen"></i><span>บันทึกข้อมูล</span></button>
-    <button class="nav-btn" data-view="data"><i class="fa-solid fa-database"></i><span>เรียกดู/ค้นหา</span></button>
+    <button type="button" class="nav-btn active" data-view="dashboard"><i class="fa-solid fa-chart-pie"></i><span>แดชบอร์ด</span></button>
+    <button type="button" class="nav-btn" data-view="form"><i class="fa-solid fa-file-pen"></i><span>บันทึกข้อมูล</span></button>
+    <button type="button" class="nav-btn" data-view="data"><i class="fa-solid fa-database"></i><span>เรียกดู/ค้นหา</span></button>
   </nav>
 
   <div class="auth-area">
     <div id="userChip" class="user-chip hidden">
       <i class="fa-solid fa-user-shield"></i>
       <span id="userName">-</span>
-      <button id="btnLogout" title="ออกจากระบบ"><i class="fa-solid fa-right-from-bracket"></i></button>
+      <button type="button" id="btnLogout" title="ออกจากระบบ"><i class="fa-solid fa-right-from-bracket"></i></button>
     </div>
-    <button id="btnLogin" class="btn btn-primary btn-sm">
+    <button type="button" id="btnLogin" class="btn btn-primary btn-sm">
       <i class="fa-solid fa-lock"></i><span>เข้าสู่ระบบ</span>
     </button>
-    <button id="btnBurger" class="burger" aria-label="เมนู"><i class="fa-solid fa-bars"></i></button>
+    <button type="button" id="btnBurger" class="burger" aria-label="เมนู"><i class="fa-solid fa-bars"></i></button>
   </div>
 </header>
 
@@ -61,40 +56,40 @@
   <section id="view-dashboard" class="view active">
     <div class="page-head">
       <h2><i class="fa-solid fa-gauge-high"></i> ภาพรวมระบบ</h2>
-      <button class="btn btn-ghost btn-sm" id="btnRefresh"><i class="fa-solid fa-rotate"></i> รีเฟรชข้อมูล</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnRefresh"><i class="fa-solid fa-rotate"></i> รีเฟรชข้อมูล</button>
     </div>
 
     <div class="stat-grid">
-      <div class="glass stat-card tone-sky">
-        <div class="stat-ico ico-blue"><i class="fa-solid fa-folder-open"></i></div>
+      <div class="card stat-card tone-sky">
+        <div class="stat-ico ico-sky"><i class="fa-solid fa-folder-open"></i></div>
         <div><p>โครงการทั้งหมด</p><h3 id="statProjects">0</h3><small>รายการ</small></div>
       </div>
-      <div class="glass stat-card tone-emerald">
-        <div class="stat-ico ico-green"><i class="fa-solid fa-sack-dollar"></i></div>
+      <div class="card stat-card tone-mint">
+        <div class="stat-ico ico-mint"><i class="fa-solid fa-sack-dollar"></i></div>
         <div><p>งบประมาณรวม</p><h3 id="statBudget">0</h3><small>บาท</small></div>
       </div>
-      <div class="glass stat-card tone-amber">
-        <div class="stat-ico ico-amber"><i class="fa-solid fa-layer-group"></i></div>
+      <div class="card stat-card tone-peach">
+        <div class="stat-ico ico-peach"><i class="fa-solid fa-layer-group"></i></div>
         <div><p>จำนวนแผ่นแบบรวม</p><h3 id="statSheets">0</h3><small>แผ่น</small></div>
       </div>
-      <div class="glass stat-card tone-violet">
-        <div class="stat-ico ico-purple"><i class="fa-solid fa-building-columns"></i></div>
+      <div class="card stat-card tone-lilac">
+        <div class="stat-ico ico-lilac"><i class="fa-solid fa-building-columns"></i></div>
         <div><p>หน่วยงานเจ้าของงบฯ</p><h3 id="statAgencies">0</h3><small>หน่วยงาน</small></div>
       </div>
     </div>
 
     <div class="chart-grid">
-      <div class="glass panel">
+      <div class="card panel">
         <h4><i class="fa-solid fa-chart-pie"></i> สัดส่วนงบประมาณตามหน่วยงาน</h4>
         <div class="chart-box"><canvas id="chartAgency"></canvas></div>
       </div>
-      <div class="glass panel">
+      <div class="card panel">
         <h4><i class="fa-solid fa-chart-column"></i> จำนวนโครงการ / งบประมาณ ตามปีงบประมาณ</h4>
         <div class="chart-box"><canvas id="chartYear"></canvas></div>
       </div>
     </div>
 
-    <div class="glass panel">
+    <div class="card panel">
       <h4><i class="fa-solid fa-clock-rotate-left"></i> รายการบันทึกล่าสุด</h4>
       <div id="recentList" class="recent-list"><div class="empty">กำลังโหลด...</div></div>
     </div>
@@ -104,17 +99,17 @@
   <section id="view-form" class="view">
     <div class="page-head">
       <h2><i class="fa-solid fa-file-circle-plus"></i> <span id="formTitle">บันทึกข้อมูลแบบแปลน</span></h2>
-      <button class="btn btn-ghost btn-sm" id="btnResetForm"><i class="fa-solid fa-eraser"></i> ล้างฟอร์ม</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnResetForm"><i class="fa-solid fa-eraser"></i> ล้างฟอร์ม</button>
     </div>
 
-    <div id="guestLock" class="glass lock-box">
+    <div id="guestLock" class="card lock-box">
       <i class="fa-solid fa-user-lock"></i>
       <h3>ส่วนนี้สำหรับเจ้าหน้าที่เท่านั้น</h3>
       <p>กรุณาเข้าสู่ระบบด้วยบัญชีเจ้าหน้าที่ เพื่อเพิ่ม/แก้ไขข้อมูล และอัปโหลดเอกสารแนบ</p>
-      <button class="btn btn-primary" id="btnLockLogin"><i class="fa-solid fa-lock"></i> เข้าสู่ระบบ</button>
+      <button type="button" class="btn btn-primary" id="btnLockLogin"><i class="fa-solid fa-lock"></i> เข้าสู่ระบบ</button>
     </div>
 
-    <form id="projectForm" class="glass panel form-panel hidden" novalidate>
+    <form id="projectForm" class="card panel hidden" novalidate>
       <input type="hidden" id="recordId">
 
       <h4 class="section-title"><span class="step">1</span> ข้อมูลโครงการ</h4>
@@ -166,12 +161,8 @@
       <div class="grid-3" id="uploadGrid"></div>
 
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary btn-lg" id="btnSubmit">
-          <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
-        </button>
-        <button type="button" class="btn btn-ghost btn-lg" id="btnCancelEdit" style="display:none">
-          <i class="fa-solid fa-xmark"></i> ยกเลิกการแก้ไข
-        </button>
+        <button type="submit" class="btn btn-primary btn-lg" id="btnSubmit"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล</button>
+        <button type="button" class="btn btn-ghost btn-lg" id="btnCancelEdit" style="display:none"><i class="fa-solid fa-xmark"></i> ยกเลิกการแก้ไข</button>
       </div>
     </form>
   </section>
@@ -181,16 +172,16 @@
     <div class="page-head">
       <h2><i class="fa-solid fa-magnifying-glass-chart"></i> เรียกดูและค้นหาข้อมูล</h2>
       <div class="view-toggle">
-        <button class="tg active" data-mode="card" title="มุมมองการ์ด"><i class="fa-solid fa-grip"></i></button>
-        <button class="tg" data-mode="table" title="มุมมองตาราง"><i class="fa-solid fa-table-list"></i></button>
+        <button type="button" class="tg active" data-mode="card" title="มุมมองการ์ด"><i class="fa-solid fa-grip"></i></button>
+        <button type="button" class="tg" data-mode="table" title="มุมมองตาราง"><i class="fa-solid fa-table-list"></i></button>
       </div>
     </div>
 
-    <div class="glass panel filter-panel">
+    <div class="card panel filter-panel">
       <div class="search-wrap">
         <i class="fa-solid fa-magnifying-glass"></i>
         <input type="text" id="searchInput" placeholder="ค้นหาชื่อโครงการ / แบบแปลนเลขที่ / หน่วยงาน..." autocomplete="off">
-        <button id="btnClearSearch" class="clear-btn hidden" type="button"><i class="fa-solid fa-xmark"></i></button>
+        <button type="button" id="btnClearSearch" class="clear-btn hidden"><i class="fa-solid fa-xmark"></i></button>
         <div id="suggestBox" class="suggest-box"></div>
       </div>
       <div class="filter-row">
@@ -203,7 +194,7 @@
           <option value="budget_asc">งบประมาณน้อย → มาก</option>
           <option value="name">ชื่อโครงการ (ก-ฮ)</option>
         </select>
-        <button class="btn btn-ghost btn-sm" id="btnResetFilter"><i class="fa-solid fa-filter-circle-xmark"></i> ล้างตัวกรอง</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnResetFilter"><i class="fa-solid fa-filter-circle-xmark"></i> ล้างตัวกรอง</button>
       </div>
       <div class="result-bar">
         <span>พบ <b id="resultCount">0</b> รายการ</span>
@@ -213,7 +204,7 @@
     </div>
 
     <div id="cardWrap" class="card-grid"></div>
-    <div id="tableWrap" class="glass panel table-wrap hidden">
+    <div id="tableWrap" class="card panel table-wrap hidden">
       <table class="data-table">
         <thead>
           <tr>
@@ -232,7 +223,7 @@
 <!-- ============ MODAL : LOGIN ============ -->
 <div id="loginModal" class="modal">
   <div class="modal-box modal-sm">
-    <button class="modal-close" data-close type="button"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="modal-close" data-close><i class="fa-solid fa-xmark"></i></button>
     <div class="login-head">
       <div class="brand-icon lg"><i class="fa-solid fa-user-shield"></i></div>
       <h3>เข้าสู่ระบบเจ้าหน้าที่</h3>
@@ -251,9 +242,7 @@
         </div>
       </div>
       <div id="loginError" class="alert-error hidden"></div>
-      <button type="submit" class="btn btn-primary btn-lg full" id="btnDoLogin">
-        <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ
-      </button>
+      <button type="submit" class="btn btn-primary btn-lg full" id="btnDoLogin"><i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ</button>
     </form>
   </div>
 </div>
@@ -261,12 +250,11 @@
 <!-- ============ MODAL : DETAIL ============ -->
 <div id="detailModal" class="modal">
   <div class="modal-box">
-    <button class="modal-close" data-close type="button"><i class="fa-solid fa-xmark"></i></button>
+    <button type="button" class="modal-close" data-close><i class="fa-solid fa-xmark"></i></button>
     <div id="detailContent"></div>
   </div>
 </div>
 
-<!-- ============ LOADER & TOAST ============ -->
 <div id="loader" class="loader-overlay hidden">
   <div class="spinner"></div><p id="loaderText">กำลังโหลดข้อมูล...</p>
 </div>
